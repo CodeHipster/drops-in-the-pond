@@ -14,6 +14,8 @@ var heightPx = 20;
 var scaleWidth = widthWindowPx/widthPx;
 var scaleHeight = heightWindowPx/heightPx;
 
+var gravity = -0.1;
+
 //create canvas
 var canvas = document.createElement("canvas");
 document.body.appendChild(canvas);
@@ -32,27 +34,36 @@ canvas.addEventListener('click', function placeDrop(event) {
     //Floor position to whole integer.
     x = ~~x;
     y = ~~y;
-    //create new drop.
-    var drop = new Drop(x,y)
-    //add to array
-    drops.push(drop);
-    //add to positions    
-    positions[drop.x][drop.y] = drop;
+    //Check if position is free.
+    if(collisionGrid[x][y] == null){
+        //create new drop.
+        var drop = new Drop(x,y)
+        //add to array
+        drops.push(drop);
+        //add to collisionGrid    
+        collisionGrid[drop.x][drop.y] = drop;
+    }    
 }, false);
 
 var ctx = canvas.getContext("2d");
 ctx.scale(scaleWidth,scaleHeight);
 ctx.fillStyle="#0000FF"; //blue
 
-//2d array to maintain positions of drops.
-var positions = []
+//Array containing all drops.
+var drops = new Array();
+
+//2d array to maintain collisions of drops.
+var collisionGrid = [];
 for(x = 0 ;x < widthPx ;x++){
-    positions[x] = []
+    collisionGrid[x] = []
     for(y=0;y<heightPx;y++){
-        positions[x][y] = null;
-        //Add bottom border.
-        if(y==0){
-            positions[x][y] = "fixed"
+        collisionGrid[x][y] = null;
+        //Add border of statics.
+        if(y==0 || x==0 || x == widthPx-1 || y == heightPx-1 ){
+            staticDrop = new Drop(x,y);
+            staticDrop.static = true;
+            collisionGrid[x][y] = staticDrop;
+            drops.push(staticDrop);
         }
     }
 }
@@ -64,25 +75,25 @@ function Drop(x,y) {
     this.velocityY = 0;        
 }
 
-var drops = new Array();
 
 function drawDrops(){
     ctx.clearRect(0, 0, widthPx, heightPx);
     drops.forEach(function(drop){
-        ctx.fillRect( drop.x, heightPx-drop.y, 1, 1 );
+        ctx.fillRect( ~~drop.x, ~~(heightPx-drop.y-1), 1, 1 );
     });
 };
 
 function dropFysics(){
     //add gravity forces to drops    
     drops.forEach(function(drop){
-        drop.velocityY += -2*0.2;//(1/Game.fps)
+        drop.velocityY += gravity*0.02;//(1/Game.fps)
     });    
 
     //move drops    
     drops.forEach(function(drop){
+        if(drop.static) return;
         //remove itself from position array
-        positions[~~drop.x][~~drop.y] = null;
+        collisionGrid[~~drop.x][~~drop.y] = null;
         var x = drop.x + drop.velocityX;        
         var y = drop.y + drop.velocityY;
 
@@ -100,119 +111,313 @@ function dropFysics(){
         }
 
         //Add itself to position array
-        positions[~~drop.x][~~drop.y] = drop;
+        collisionGrid[~~drop.x][~~drop.y] = drop;
     });    
 };
 
 
 function transferKineticEnergy(drop){
-    //get drop position, get surrounding drops
+    var left = collisionGrid[drop.x-1][drop.y];
+    var right = collisionGrid[drop.x+1][drop.y];
+    var bottom = collisionGrid[drop.x][drop.y-1];
+    var top = collisionGrid[drop.x][drop.y+1];
+    if(!right instanceof Drop){right = null;}
+    if(!right instanceof Drop){left = null;}
+    if(!top instanceof Drop){top = null;}
+    if(!bottom instanceof Drop){bottom = null;}
+    //values of drop's own velocity.
+    var dropVelocityX = 0;
+    var dropVelocityY = 0;
     
-    //add velocity to other drops.
+    //X direction
+    if(drop.velocityX){        
+        if(drop.velocityX > 0){ //velocity directed right.
+            if(right){
+                if(right.static){
+                    //hitting a static all force goes up and down.  
+                    if(top){
+                        top.velocityY += 0.5 * drop.velocityX;
+                    }else{
+                        dropVelocityY += 0.5 * drop.velocityX;
+                    }               
+                    if(bottom){
+                        bottom.velocityY -= 0.5 * drop.velocityX;
+                    }else{
+                        dropVelocityY -= 0.5 * drop.velocityX;
+                    }
+                }
+                if(top && bottom){                    
+                    right.velocityX += 0.50 * drop.velocityX; //transfer a part.
+                    top.velocityY -= 0.25 * drop.velocityX; //part of force goes up.
+                    bottom.velocityY += 0.25 * drop.velocityX; //part of force goes down.
+                }else if(top || bottom){
+                    right.velocityX += 0.50 * drop.velocityX; //transfer a part.
+                    if(top){
+                        top.velocityY -= 0.25 * drop.velocityX; //part of force goes up.
+                        dropVelocityY += 0.25 * drop.velocityX; //part goes into itself down.
+                    }else{
+                        bottom.velocityY += 0.25 * drop.velocityX; //part of force goes down.     
+                        dropVelocityY -= 0.25 * drop.velocityX; //part goes into itself up.                   
+                    }
+                }else{ //no top or bottom.
+                    right.velocityX += 0.75 * drop.velocityX; //transfer part right.
+                    if(Math.random()<0.5){ //transfor randomly left or right.
+                        dropVelocityY -= 0.25 * drop.velocityX;
+                    }else{
+                        dropVelocityY += 0.25 * drop.velocityX;
+                    }          
+                }
+            }else{ //nothing directly in the way.
+                dropVelocityX += drop.velocityX; //just continue                
+            }
+        }else{ //velocity directed left.
+            if(left){
+                if(left.static){
+                    //hitting a static all force goes up and down.  
+                    if(top){
+                        top.velocityY -= 0.5 * drop.velocityX;
+                    }else{
+                        dropVelocityY -= 0.5 * drop.velocityX;
+                    }               
+                    if(bottom){
+                        bottom.velocityY += 0.5 * drop.velocityX;
+                    }else{
+                        dropVelocityY += 0.5 * drop.velocityX;
+                    }
+                }
+                if(top && bottom){                    
+                    left.velocityX += 0.50 * drop.velocityX; //transfer a part.
+                    top.velocityY += 0.25 * drop.velocityX; //part of force goes up.
+                    bottom.velocityY -= 0.25 * drop.velocityX; //part of force goes down.
+                }else if(top || bottom){
+                    left.velocityX += 0.50 * drop.velocityX; //transfer a part.
+                    if(top){
+                        top.velocityY += 0.25 * drop.velocityX; //part of force goes up.
+                        dropVelocityY -= 0.25 * drop.velocityX; //part goes into itself down.
+                    }else{
+                        bottom.velocityY -= 0.25 * drop.velocityX; //part of force goes down.     
+                        dropVelocityY += 0.25 * drop.velocityX; //part goes into itself up.                   
+                    }
+                }else{ //no top or bottom.
+                    left.velocityX += 0.75 * drop.velocityX; //transfer part.
+                    if(Math.random()<0.5){ //transfor randomly left or right.
+                        dropVelocityY -= 0.25 * drop.velocityX;
+                    }else{
+                        dropVelocityY += 0.25 * drop.velocityX;
+                    }                              
+                }
+            }else{ //nothing directly in the way.
+                dropVelocityX += drop.velocityX; //just continue                
+            }
+        }
+    }
     
-    //set drop velocity to 0
-    drop.velocityX = 0;
-    drop.velocityY = 0;
+    //Y direction
+    if(drop.velocityY){            
+        if(drop.velocityY > 0){ //velocity directed up.
+            if(top){
+                if(top.static){
+                    //hitting a static all force goes left and right.  
+                    if(left){
+                        left.velocityX -= 0.5 * drop.velocityY;
+                    }else{
+                        dropVelocityX -= 0.5 * drop.velocityY;
+                    }               
+                    if(right){
+                        right.velocityX += 0.5 * drop.velocityY;
+                    }else{
+                        dropVelocityX += 0.5 * drop.velocityY;
+                    }
+                }
+                if(left && right){                    
+                    top.velocityY += 0.50 * drop.velocityY; //transfer a part.
+                    left.velocityX -= 0.25 * drop.velocityY; //part of force goes left.
+                    right.velocityX += 0.25 * drop.velocityY; //part of force goes right.
+                }else if(left || right){
+                    top.velocityY += 0.50 * drop.velocityY; //transfer a part.
+                    if(left){
+                        left.velocityX -= 0.25 * drop.velocityY; //part of force goes left.
+                        dropVelocityX += 0.25 * drop.velocityY; //part goes into itself right.
+                    }else{
+                        dropVelocityX -= 0.25 * drop.velocityY; //part goes into itself left.                   
+                        right.velocityX += 0.25 * drop.velocityY; //part of force goes right.     
+                    }
+                }else{ //no left or right.
+                    top.velocityY += 0.75 * drop.velocityY; //transfer part.
+                    if(Math.random()<0.5){ //transfer randomly left or right.
+                        dropVelocityX -= 0.25 * drop.velocityY;
+                    }else{
+                        dropVelocityX += 0.25 * drop.velocityY;
+                    }                              
+                }
+            }else{ //nothing directly in the way.
+                dropVelocityY += drop.velocityY; //just continue                
+            }
+        }else{ //velocity directed down.
+            if(bottom){
+                if(bottom.static){
+                    //hitting a static all force goes left and right.  
+                    if(left){
+                        left.velocityX += 0.5 * drop.velocityY;
+                    }else{
+                        dropVelocityX += 0.5 * drop.velocityY;
+                    }               
+                    if(right){
+                        right.velocityX -= 0.5 * drop.velocityY;
+                    }else{
+                        dropVelocityX -= 0.5 * drop.velocityY;
+                    }
+                }
+                if(left && right){  
+                    bottom.velocityY += 0.50 * drop.velocityY; //transfer a part.
+                    left.velocityX += 0.25 * drop.velocityY; //part of force goes left.
+                    right.velocityX -= 0.25 * drop.velocityY; //part of force goes right.
+                }else if(left || right){
+                    bottom.velocityY += 0.50 * drop.velocityY; //transfer a part.
+                    if(left){
+                        left.velocityX += 0.25 * drop.velocityY; //part of force goes left.
+                        dropVelocityX -= 0.25 * drop.velocityY; //part goes into itself right.
+                    }else{
+                        right.velocityX -= 0.25 * drop.velocityY; //part of force goes right.     
+                        dropVelocityX += 0.25 * drop.velocityY; //part goes into itself left.                   
+                    }
+                }else{ //no left or right.
+                    bottom.velocityY += drop.velocityY; //transfer part.
+                    if(Math.random()<0.5){ //transfer randomly left or right.
+                        dropVelocityX -= 0.25 * drop.velocityY;
+                    }else{
+                        dropVelocityX += 0.25 * drop.velocityY;
+                    }                       
+                }
+            }else{ //nothing directly in the way.
+                dropVelocityY += drop.velocityY; //just continue                
+            }
+        }
+    } 
+    
+    //set new drop velocity;
+    drop.velocityX = dropVelocityX;
+    drop.velocityY = dropVelocityY;
 }
 
 //Returns end xy or an xy in between if there is a collision.
 function collisionPoint(xStart, yStart, xEnd, yEnd){
+    
+    //If w're not going to move in the collision grid. no need to check for collision.
+    if(~~xStart == ~~xEnd && ~~yStart == ~~yEnd) return null;
+    
     //step over x or y, whichever absolute distance is greater.
     var deltaX = xEnd - xStart;
     var deltaY = yEnd - yStart;
-    var x,y,prevCollisionX, prevCollisionY, collisionX, collisionY;
-    if(Math.abs(deltaX) > Math.abs(deltaY)){
-        //step over x
+    var x, y, collisionX, collisionY;
+    
+    //Set prevCollision to current position aligned to collision grid.
+    //~~ converts a number to an integer.(floor() for positive nrs)
+    var prevCollisionX = ~~xStart;
+    var prevCollisionY = ~~yStart; 
+    var stepOverX = Math.abs(deltaX) > Math.abs(deltaY);
+    if(stepOverX){
         var yStep = deltaY/deltaX; //y step for each 1x
         var xStep = (deltaX > 0)? 1 : -1
-    
-        //~~ converts a number to an integer.(floor() for positive nrs)
-        prevCollisionX = ~~xStart;
-        prevCollisionY = ~~yStart;
-        //Align to next integer position (move forward a little)
-        x = ~~(xStart + xStep);
-        var alignStepX = x - xStart;
-        y = (alignStepX * yStep) + yStart;        
-                
-        collisionX = ~~x;
-        collisionY = ~~y;
         
-        //Check if that hits.
-        if(positions[collisionX][collisionY] != null){
-            //we have collision. return previous non collision x, y locations.
-            return [prevCollisionX,prevCollisionY];
-        }
-        
-        //Then start doing full steps.
-        while (~~xEnd != ~~x){
-            prevCollisionX = collisionX;
-            prevCollisionY = collisionY;
-            x = x + xStep;
-            y = y + yStep;
+        if(~~xStart == ~~xEnd){
+            //we are crossing boundry in y direction. because we already check if we move at all.
+            //set values to their end point (as y can pass over more then 1 position.)
+            x = xEnd;
+            y = yEnd;
             collisionX = ~~x;
             collisionY = ~~y;
-            if(positions[collisionX][collisionY] != null){
+            //Check if first align step hits.
+            if(collisionGrid[collisionX][collisionY] != null){
                 //we have collision. return previous non collision x, y locations.
                 return [prevCollisionX,prevCollisionY];
+            }else{
+                return null;
             }
-        }
+        }else{
+            //Align to next integer position (move forward a little)
+            x = ~~(xStart + xStep);
+            var alignStepX = x - xStart;
+            y = (alignStepX * yStep) + yStart;         
+        }    
         
-        //No hits along the way, check if the end position hits anything.
-        prevCollisionX = collisionX;
-        prevCollisionY = collisionY;
-        collisionX = ~~xEnd;
-        collisionY = ~~yEnd;
-        if(positions[~~xEnd][~~yEnd] != null){
-            //we have collision. return previous non collision x, y locations.
-            return [prevCollisionX,prevCollisionY];
-        }
-    }else{
-        //step over y
-        
+    }else{   
+        //step over y     
         var xStep = deltaX/deltaY; //xStep for each 1y
         var yStep = (deltaY > 0)? 1 : -1
         
-        //~~ converts a number to an integer.(floor() for positive nrs)
-        prevCollisionX = ~~xStart;
-        prevCollisionY = ~~yStart;
-        //Align to next integer position (move forward a little)
-        y = ~~(yStart + yStep);
-        var alignStepY = y - yStart;
-        x = (alignStepY * xStep) + xStart;
-        
-        collisionX = ~~x;
-        collisionY = ~~y;
-        
-        //Check if that hits.
-        if(positions[collisionX][collisionY] != null){
-            //we have collision. return previous non collision x, y locations.
-            return [prevCollisionX,prevCollisionY];
-        }
-        
-        //Then start doing full steps.
-        while (~~yEnd != ~~y){            
-            prevCollisionX = collisionX;
-            prevCollisionY = collisionY;
-            x = x + xStep;
-            y = y + yStep;
+        if(~~yStart == ~~yEnd){
+            //we are crossing boundry in y direction. because we already check if we move at all.
+            //set values to their end point (as y can pass over more then 1 position.)
+            x = xEnd;
+            y = yEnd;
             collisionX = ~~x;
             collisionY = ~~y;
-            if(positions[collisionX][collisionY] != null){
+            //Check if first align step hits.
+            if(collisionGrid[collisionX][collisionY] != null){
                 //we have collision. return previous non collision x, y locations.
                 return [prevCollisionX,prevCollisionY];
+            }else{
+                return null;
             }
-        }
+        }else{
+            //Align to next integer position (move forward a little)
+            y = ~~(yStart + yStep);
+            var alignStepY = y - yStart;
+            x = (alignStepY * xStep) + xStart;
+        }        
+    }       
+            
+    collisionX = ~~x;
+    collisionY = ~~y;
         
-        //No hits along the way, check if the end position hits anything.
+    //Check if first align step hits.
+    if(collisionGrid[collisionX][collisionY] != null){
+        //we have collision. return previous non collision x, y locations.
+        return [prevCollisionX,prevCollisionY];
+    }
+    
+    function step(){
         prevCollisionX = collisionX;
         prevCollisionY = collisionY;
-        collisionX = ~~xEnd;
-        collisionY = ~~yEnd;
-        if(positions[~~xEnd][~~yEnd] != null){
+        x = x + xStep;
+        y = y + yStep;
+        collisionX = ~~x;
+        collisionY = ~~y;
+        if(collisionGrid[collisionX][collisionY] != null){
             //we have collision. return previous non collision x, y locations.
             return [prevCollisionX,prevCollisionY];
         }
+        return null;
     }
+    
+    //Then start doing full steps.
+    if(stepOverX){
+        while (~~xEnd != ~~x){
+            var result = step();
+            if(result != null) {
+                return result;
+            }
+        }    
+    }else{
+        while (~~yEnd != ~~y){
+            var result = step();
+            if(result != null) {
+                return result;
+            }            
+        }
+    }
+        
+    //No hits along the way, check if the end position hits anything.
+    prevCollisionX = collisionX;
+    prevCollisionY = collisionY;
+    collisionX = ~~xEnd;
+    collisionY = ~~yEnd;
+    if(collisionGrid[collisionX][collisionY] != null){
+        //we have collision. return previous non collision x, y locations.
+        return [prevCollisionX,prevCollisionY];
+    }
+    
     return null;
 }
 
