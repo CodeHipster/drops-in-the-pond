@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<script>
+
+
+var widthWindowPx = 400;
+var heightWindowPx = 400;
+
+var widthPx = 20;
+var heightPx = 20;
+
+var scaleWidth = widthWindowPx/widthPx;
+var scaleHeight = heightWindowPx/heightPx;
+
+//create canvas
+var canvas = document.createElement("canvas");
+document.body.appendChild(canvas);
+canvas.id     = "pond";
+canvas.width  = widthWindowPx;
+canvas.height = heightWindowPx;
+canvas.style.border = "1px solid";
+
+canvas.addEventListener('click', function placeDrop(event) {
+    //Drops are on cartesian coordinates, window coordinates have inverted Y.
+    var x = event.offsetX;
+    var y = heightWindowPx-event.offsetY;
+    //Scale scale clicked window pixel back to pond/context pixel.
+    x /= scaleWidth;
+    y /= scaleHeight;
+    //Floor position to whole integer.
+    x = ~~x;
+    y = ~~y;
+    //create new drop.
+    var drop = new Drop(x,y)
+    //add to array
+    drops.push(drop);
+    //add to positions    
+    positions[drop.x][drop.y] = drop;
+}, false);
+
+var ctx = canvas.getContext("2d");
+ctx.scale(scaleWidth,scaleHeight);
+ctx.fillStyle="#0000FF"; //blue
+
+//2d array to maintain positions of drops.
+var positions = []
+for(x = 0 ;x < widthPx ;x++){
+    positions[x] = []
+    for(y=0;y<heightPx;y++){
+        positions[x][y] = null;
+        //Add bottom border.
+        if(y==0){
+            positions[x][y] = "fixed"
+        }
+    }
+}
+
+function Drop(x,y) {
+    this.x = x;
+    this.y = y;
+    this.velocityX = 0;
+    this.velocityY = 0;        
+}
+
+var drops = new Array();
+
+function drawDrops(){
+    ctx.clearRect(0, 0, widthPx, heightPx);
+    drops.forEach(function(drop){
+        ctx.fillRect( drop.x, heightPx-drop.y, 1, 1 );
+    });
+};
+
+function dropFysics(){
+    //add gravity forces to drops    
+    drops.forEach(function(drop){
+        drop.velocityY += -2*0.2;//(1/Game.fps)
+    });    
+
+    //move drops    
+    drops.forEach(function(drop){
+        //remove itself from position array
+        positions[~~drop.x][~~drop.y] = null;
+        var x = drop.x + drop.velocityX;        
+        var y = drop.y + drop.velocityY;
+
+        //check for collision
+        //check each pixel between position and desired position.
+        var colPoint = collisionPoint(drop.x, drop.y, x, y);
+        if(colPoint != null){
+            drop.x = colPoint[0];
+            drop.y = colPoint[1];
+            //transfer kinetic energy.
+            transferKineticEnergy(drop);
+        }else{
+            drop.x = x;
+            drop.y = y;
+        }
+
+        //Add itself to position array
+        positions[~~drop.x][~~drop.y] = drop;
+    });    
+};
+
+
+function transferKineticEnergy(drop){
+    //get drop position, get surrounding drops
+    
+    //add velocity to other drops.
+    
+    //set drop velocity to 0
+    drop.velocityX = 0;
+    drop.velocityY = 0;
+}
+
+//Returns end xy or an xy in between if there is a collision.
+function collisionPoint(xStart, yStart, xEnd, yEnd){
+    //step over x or y, whichever absolute distance is greater.
+    var deltaX = xEnd - xStart;
+    var deltaY = yEnd - yStart;
+    var x,y,prevCollisionX, prevCollisionY, collisionX, collisionY;
+    if(Math.abs(deltaX) > Math.abs(deltaY)){
+        //step over x
+        var yStep = deltaY/deltaX; //y step for each 1x
+        var xStep = (deltaX > 0)? 1 : -1
+    
+        //~~ converts a number to an integer.(floor() for positive nrs)
+        prevCollisionX = ~~xStart;
+        prevCollisionY = ~~yStart;
+        //Align to next integer position (move forward a little)
+        x = ~~(xStart + xStep);
+        var alignStepX = x - xStart;
+        y = (alignStepX * yStep) + yStart;        
+                
+        collisionX = ~~x;
+        collisionY = ~~y;
+        
+        //Check if that hits.
+        if(positions[collisionX][collisionY] != null){
+            //we have collision. return previous non collision x, y locations.
+            return [prevCollisionX,prevCollisionY];
+        }
+        
+        //Then start doing full steps.
+        while (~~xEnd != ~~x){
+            prevCollisionX = collisionX;
+            prevCollisionY = collisionY;
+            x = x + xStep;
+            y = y + yStep;
+            collisionX = ~~x;
+            collisionY = ~~y;
+            if(positions[collisionX][collisionY] != null){
+                //we have collision. return previous non collision x, y locations.
+                return [prevCollisionX,prevCollisionY];
+            }
+        }
+        
+        //No hits along the way, check if the end position hits anything.
+        prevCollisionX = collisionX;
+        prevCollisionY = collisionY;
+        collisionX = ~~xEnd;
+        collisionY = ~~yEnd;
+        if(positions[~~xEnd][~~yEnd] != null){
+            //we have collision. return previous non collision x, y locations.
+            return [prevCollisionX,prevCollisionY];
+        }
+    }else{
+        //step over y
+        
+        var xStep = deltaX/deltaY; //xStep for each 1y
+        var yStep = (deltaY > 0)? 1 : -1
+        
+        //~~ converts a number to an integer.(floor() for positive nrs)
+        prevCollisionX = ~~xStart;
+        prevCollisionY = ~~yStart;
+        //Align to next integer position (move forward a little)
+        y = ~~(yStart + yStep);
+        var alignStepY = y - yStart;
+        x = (alignStepY * xStep) + xStart;
+        
+        collisionX = ~~x;
+        collisionY = ~~y;
+        
+        //Check if that hits.
+        if(positions[collisionX][collisionY] != null){
+            //we have collision. return previous non collision x, y locations.
+            return [prevCollisionX,prevCollisionY];
+        }
+        
+        //Then start doing full steps.
+        while (~~yEnd != ~~y){            
+            prevCollisionX = collisionX;
+            prevCollisionY = collisionY;
+            x = x + xStep;
+            y = y + yStep;
+            collisionX = ~~x;
+            collisionY = ~~y;
+            if(positions[collisionX][collisionY] != null){
+                //we have collision. return previous non collision x, y locations.
+                return [prevCollisionX,prevCollisionY];
+            }
+        }
+        
+        //No hits along the way, check if the end position hits anything.
+        prevCollisionX = collisionX;
+        prevCollisionY = collisionY;
+        collisionX = ~~xEnd;
+        collisionY = ~~yEnd;
+        if(positions[~~xEnd][~~yEnd] != null){
+            //we have collision. return previous non collision x, y locations.
+            return [prevCollisionX,prevCollisionY];
+        }
+    }
+    return null;
+}
+
+
+
+var Game = { };
+Game.fps = 50;
+Game.draw = function() { 
+    drawDrops();
+};
+Game.update = function() {    
+    dropFysics();
+};
+Game.run = (function() {
+    var loops = 0, skipTicks = 1000 / Game.fps,
+    maxFrameSkip = 1,
+    nextGameTick = (new Date).getTime();
+    
+    //function returned by iife
+    return function() {
+        loops = 0;
+        
+        while ((new Date).getTime() > nextGameTick && loops < maxFrameSkip) {
+            Game.update();
+            nextGameTick += skipTicks;
+            loops++;
+        }
+        
+        if (loops) Game.draw();
+    };
+})();
+
+// Start the game loop
+Game._intervalId = setInterval(Game.run, 0);
+
+</script>
+
+</body>
+</html>
