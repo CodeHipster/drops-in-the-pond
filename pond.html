@@ -9,8 +9,8 @@
 var widthWindowPx = 400;
 var heightWindowPx = 400;
 
-var widthPx = 20;
-var heightPx = 20;
+var widthPx = 100;
+var heightPx = 100;
 
 var scaleWidth = widthWindowPx/widthPx;
 var scaleHeight = heightWindowPx/heightPx;
@@ -39,8 +39,9 @@ canvas.addEventListener('click', function placeDrop(event) {
     if(collisionGrid[x][y] == null){
         //create new drop.
         var drop = new Drop(x,y)
-        drop.velocityX = -20;
-        drop.velocityY = 40;
+        drop.velocityX = 0;
+        drop.velocityY = -100000; //drop a little bomb :D
+        drop.test = true;
         //add to array
         drops.push(drop);
         //add to collisionGrid    
@@ -67,6 +68,12 @@ for(x = 0 ;x < widthPx ;x++){
             staticDrop.static = true;
             collisionGrid[x][y] = staticDrop;
             drops.push(staticDrop);
+        }else{
+            if(y < 10){ //prefil with drops
+                var drop = new Drop(x,y);
+                collisionGrid[x][y] = drop;
+                drops.push(drop);
+            }
         }
     }
 }
@@ -257,6 +264,7 @@ function transferKineticEnergy(drop){
             if(bottom){
                 if(bottom.static){
                     //hitting a static all force goes left and right.  
+                    //force is lost if side is a static.
                     if(left){
                         left.velocityX += 0.5 * drop.velocityY;
                     }else{
@@ -267,7 +275,7 @@ function transferKineticEnergy(drop){
                     }else{
                         dropVelocityX -= 0.5 * drop.velocityY;
                     }
-                }else{//transfer force   
+                }else{//transfer force to surrounding drops.
                     if(left && right){  
                         bottom.velocityY += 0.50 * drop.velocityY; //transfer a part.
                         left.velocityX += 0.25 * drop.velocityY; //part of force goes left.
@@ -282,7 +290,7 @@ function transferKineticEnergy(drop){
                             dropVelocityX += 0.25 * drop.velocityY; //part goes into itself left.                   
                         }
                     }else{ //no left or right.
-                        bottom.velocityY += drop.velocityY; //transfer part.
+                        bottom.velocityY += 0.75 * drop.velocityY; //transfer part.
                         if(Math.random()<0.5){ //transfer randomly left or right.
                             dropVelocityX -= 0.25 * drop.velocityY;
                         }else{
