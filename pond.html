@@ -40,7 +40,7 @@ canvas.addEventListener('click', function placeDrop(event) {
         //create new drop.
         var drop = new Drop(x,y)
         drop.velocityX = 5;
-        drop.velocityY = 5;
+        drop.velocityY = 10;
         //add to array
         drops.push(drop);
         //add to collisionGrid    
@@ -86,8 +86,8 @@ function drawDrops(){
         ctx.fillRect( drop.x, (heightPx-drop.y-1), 1, 1 );
         if(!drop.static){
             //draw arrows for debugging.
-            drawArrow(drop.x + 0.5, (heightPx-drop.y-1) + 0.5, drop.x+drop.velocityX + 0.5, (heightPx-drop.y-1) + 0.5, "#ff0000", ctx);
-            drawArrow(drop.x + 0.5, (heightPx-drop.y-1) + 0.5, drop.x + 0.5, (heightPx-drop.y-1)+drop.velocityY + 0.5, "#00ff00", ctx);
+            drawArrow(drop.x + 0.5, (heightPx-drop.y-1) + 0.5, drop.x+drop.velocityX/scaleWidth + 0.5, (heightPx-drop.y-1) + 0.5, "#ff0000", ctx);
+            drawArrow(drop.x + 0.5, (heightPx-drop.y-1) + 0.5, drop.x + 0.5, (heightPx-drop.y-1)-drop.velocityY/scaleHeight + 0.5, "#00ff00", ctx);
         }
     });
 };
@@ -102,7 +102,7 @@ function dropFysics(seconds){
         collisionGrid[drop.x][drop.y] = null;
         
         //add gravity
-        //drop.velocityY += gravity*seconds;
+        drop.velocityY += gravity*seconds;
 
         //resolve kinetic energy (move drop / transfer velocity)
         resolveKineticEnergy(drop, seconds);
