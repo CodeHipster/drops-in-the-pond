@@ -33,12 +33,14 @@ canvas.addEventListener('click', function placeDrop(event) {
     x /= scaleWidth;
     y /= scaleHeight;
     //Floor position to whole integer.
-    x = ~~x;
-    y = ~~y;
+    x = Math.floor(x);
+    y = Math.floor(y);
     //Check if position is free.
     if(collisionGrid[x][y] == null){
         //create new drop.
         var drop = new Drop(x,y)
+        drop.velocityX = 5;
+        drop.velocityY = 5;
         //add to array
         drops.push(drop);
         //add to collisionGrid    
@@ -75,45 +77,35 @@ function Drop(x,y) {
     this.velocityX = 0;
     this.velocityY = 0;        
 }
-
+Drop.prototype.accelerationY = gravity;
 
 function drawDrops(){
     ctx.clearRect(0, 0, widthPx, heightPx);
     drops.forEach(function(drop){
+        ctx.fillStyle="#0000FF"; //blue
         ctx.fillRect( drop.x, (heightPx-drop.y-1), 1, 1 );
         if(!drop.static){
-            drawArrow(drop.x, (heightPx-drop.y-1), drop.x+drop.velocityX, (heightPx-drop.y-1), "#ff0000", ctx);
-            drawArrow(drop.x, (heightPx-drop.y-1), drop.x, (heightPx-drop.y-1)+drop.velocityY, "#00ff00", ctx);
+            //draw arrows for debugging.
+            drawArrow(drop.x + 0.5, (heightPx-drop.y-1) + 0.5, drop.x+drop.velocityX + 0.5, (heightPx-drop.y-1) + 0.5, "#ff0000", ctx);
+            drawArrow(drop.x + 0.5, (heightPx-drop.y-1) + 0.5, drop.x + 0.5, (heightPx-drop.y-1)+drop.velocityY + 0.5, "#00ff00", ctx);
         }
     });
 };
 
-function dropFysics(){
-    //add gravity forces to drops    
+function dropFysics(seconds){
+    
     drops.forEach(function(drop){
-        drop.velocityY += gravity*0.02;//(1/Game.fps)
-    });    
-
-    //move drops    
-    drops.forEach(function(drop){
+        //if static, we do not do physics.
         if(drop.static) return;
+        
         //remove itself from position array
         collisionGrid[drop.x][drop.y] = null;
-        var x = ~~(drop.x + drop.velocityX);        
-        var y = ~~(drop.y + drop.velocityY);
+        
+        //add gravity
+        //drop.velocityY += gravity*seconds;
 
-        //check for collision
-        //check each pixel between position and desired position.
-        var colPoint = collisionPoint(drop.x, drop.y, x, y);
-        if(colPoint != null){
-            drop.x = colPoint[0];
-            drop.y = colPoint[1];
-            //transfer kinetic energy.
-            transferKineticEnergy(drop);
-        }else{
-            drop.x = x;
-            drop.y = y;
-        }
+        //resolve kinetic energy (move drop / transfer velocity)
+        resolveKineticEnergy(drop, seconds);
 
         //Add itself to position array
         collisionGrid[drop.x][drop.y] = drop;
@@ -150,27 +142,28 @@ function transferKineticEnergy(drop){
                     }else{
                         dropVelocityY -= 0.5 * drop.velocityX;
                     }
-                }
-                if(top && bottom){                    
-                    right.velocityX += 0.50 * drop.velocityX; //transfer a part.
-                    top.velocityY -= 0.25 * drop.velocityX; //part of force goes up.
-                    bottom.velocityY += 0.25 * drop.velocityX; //part of force goes down.
-                }else if(top || bottom){
-                    right.velocityX += 0.50 * drop.velocityX; //transfer a part.
-                    if(top){
+                }else{ //transfer force.                    
+                    if(top && bottom){                    
+                        right.velocityX += 0.50 * drop.velocityX; //transfer a part.
                         top.velocityY -= 0.25 * drop.velocityX; //part of force goes up.
-                        dropVelocityY += 0.25 * drop.velocityX; //part goes into itself down.
-                    }else{
-                        bottom.velocityY += 0.25 * drop.velocityX; //part of force goes down.     
-                        dropVelocityY -= 0.25 * drop.velocityX; //part goes into itself up.                   
+                        bottom.velocityY += 0.25 * drop.velocityX; //part of force goes down.
+                    }else if(top || bottom){
+                        right.velocityX += 0.50 * drop.velocityX; //transfer a part.
+                        if(top){
+                            top.velocityY -= 0.25 * drop.velocityX; //part of force goes up.
+                            dropVelocityY += 0.25 * drop.velocityX; //part goes into itself down.
+                        }else{
+                            bottom.velocityY += 0.25 * drop.velocityX; //part of force goes down.     
+                            dropVelocityY -= 0.25 * drop.velocityX; //part goes into itself up.                   
+                        }
+                    }else{ //no top or bottom.
+                        right.velocityX += 0.75 * drop.velocityX; //transfer part right.
+                        if(Math.random()<0.5){ //transfor randomly left or right.
+                            dropVelocityY -= 0.25 * drop.velocityX;
+                        }else{
+                            dropVelocityY += 0.25 * drop.velocityX;
+                        }          
                     }
-                }else{ //no top or bottom.
-                    right.velocityX += 0.75 * drop.velocityX; //transfer part right.
-                    if(Math.random()<0.5){ //transfor randomly left or right.
-                        dropVelocityY -= 0.25 * drop.velocityX;
-                    }else{
-                        dropVelocityY += 0.25 * drop.velocityX;
-                    }          
                 }
             }else{ //nothing directly in the way.
                 dropVelocityX += drop.velocityX; //just continue                
@@ -189,27 +182,28 @@ function transferKineticEnergy(drop){
                     }else{
                         dropVelocityY += 0.5 * drop.velocityX;
                     }
-                }
-                if(top && bottom){                    
-                    left.velocityX += 0.50 * drop.velocityX; //transfer a part.
-                    top.velocityY += 0.25 * drop.velocityX; //part of force goes up.
-                    bottom.velocityY -= 0.25 * drop.velocityX; //part of force goes down.
-                }else if(top || bottom){
-                    left.velocityX += 0.50 * drop.velocityX; //transfer a part.
-                    if(top){
+                }else{//transfer force                    
+                    if(top && bottom){                    
+                        left.velocityX += 0.50 * drop.velocityX; //transfer a part.
                         top.velocityY += 0.25 * drop.velocityX; //part of force goes up.
-                        dropVelocityY -= 0.25 * drop.velocityX; //part goes into itself down.
-                    }else{
-                        bottom.velocityY -= 0.25 * drop.velocityX; //part of force goes down.     
-                        dropVelocityY += 0.25 * drop.velocityX; //part goes into itself up.                   
+                        bottom.velocityY -= 0.25 * drop.velocityX; //part of force goes down.
+                    }else if(top || bottom){
+                        left.velocityX += 0.50 * drop.velocityX; //transfer a part.
+                        if(top){
+                            top.velocityY += 0.25 * drop.velocityX; //part of force goes up.
+                            dropVelocityY -= 0.25 * drop.velocityX; //part goes into itself down.
+                        }else{
+                            bottom.velocityY -= 0.25 * drop.velocityX; //part of force goes down.     
+                            dropVelocityY += 0.25 * drop.velocityX; //part goes into itself up.                   
+                        }
+                    }else{ //no top or bottom.
+                        left.velocityX += 0.75 * drop.velocityX; //transfer part.
+                        if(Math.random()<0.5){ //transfor randomly left or right.
+                            dropVelocityY -= 0.25 * drop.velocityX;
+                        }else{
+                            dropVelocityY += 0.25 * drop.velocityX;
+                        }                              
                     }
-                }else{ //no top or bottom.
-                    left.velocityX += 0.75 * drop.velocityX; //transfer part.
-                    if(Math.random()<0.5){ //transfor randomly left or right.
-                        dropVelocityY -= 0.25 * drop.velocityX;
-                    }else{
-                        dropVelocityY += 0.25 * drop.velocityX;
-                    }                              
                 }
             }else{ //nothing directly in the way.
                 dropVelocityX += drop.velocityX; //just continue                
@@ -233,27 +227,28 @@ function transferKineticEnergy(drop){
                     }else{
                         dropVelocityX += 0.5 * drop.velocityY;
                     }
-                }
-                if(left && right){                    
-                    top.velocityY += 0.50 * drop.velocityY; //transfer a part.
-                    left.velocityX -= 0.25 * drop.velocityY; //part of force goes left.
-                    right.velocityX += 0.25 * drop.velocityY; //part of force goes right.
-                }else if(left || right){
-                    top.velocityY += 0.50 * drop.velocityY; //transfer a part.
-                    if(left){
+                }else{//transfer force   
+                    if(left && right){                    
+                        top.velocityY += 0.50 * drop.velocityY; //transfer a part.
                         left.velocityX -= 0.25 * drop.velocityY; //part of force goes left.
-                        dropVelocityX += 0.25 * drop.velocityY; //part goes into itself right.
-                    }else{
-                        dropVelocityX -= 0.25 * drop.velocityY; //part goes into itself left.                   
-                        right.velocityX += 0.25 * drop.velocityY; //part of force goes right.     
+                        right.velocityX += 0.25 * drop.velocityY; //part of force goes right.
+                    }else if(left || right){
+                        top.velocityY += 0.50 * drop.velocityY; //transfer a part.
+                        if(left){
+                            left.velocityX -= 0.25 * drop.velocityY; //part of force goes left.
+                            dropVelocityX += 0.25 * drop.velocityY; //part goes into itself right.
+                        }else{
+                            dropVelocityX -= 0.25 * drop.velocityY; //part goes into itself left.                   
+                            right.velocityX += 0.25 * drop.velocityY; //part of force goes right.     
+                        }
+                    }else{ //no left or right.
+                        top.velocityY += 0.75 * drop.velocityY; //transfer part.
+                        if(Math.random()<0.5){ //transfer randomly left or right.
+                            dropVelocityX -= 0.25 * drop.velocityY;
+                        }else{
+                            dropVelocityX += 0.25 * drop.velocityY;
+                        }                              
                     }
-                }else{ //no left or right.
-                    top.velocityY += 0.75 * drop.velocityY; //transfer part.
-                    if(Math.random()<0.5){ //transfer randomly left or right.
-                        dropVelocityX -= 0.25 * drop.velocityY;
-                    }else{
-                        dropVelocityX += 0.25 * drop.velocityY;
-                    }                              
                 }
             }else{ //nothing directly in the way.
                 dropVelocityY += drop.velocityY; //just continue                
@@ -272,27 +267,28 @@ function transferKineticEnergy(drop){
                     }else{
                         dropVelocityX -= 0.5 * drop.velocityY;
                     }
-                }
-                if(left && right){  
-                    bottom.velocityY += 0.50 * drop.velocityY; //transfer a part.
-                    left.velocityX += 0.25 * drop.velocityY; //part of force goes left.
-                    right.velocityX -= 0.25 * drop.velocityY; //part of force goes right.
-                }else if(left || right){
-                    bottom.velocityY += 0.50 * drop.velocityY; //transfer a part.
-                    if(left){
+                }else{//transfer force   
+                    if(left && right){  
+                        bottom.velocityY += 0.50 * drop.velocityY; //transfer a part.
                         left.velocityX += 0.25 * drop.velocityY; //part of force goes left.
-                        dropVelocityX -= 0.25 * drop.velocityY; //part goes into itself right.
-                    }else{
-                        right.velocityX -= 0.25 * drop.velocityY; //part of force goes right.     
-                        dropVelocityX += 0.25 * drop.velocityY; //part goes into itself left.                   
+                        right.velocityX -= 0.25 * drop.velocityY; //part of force goes right.
+                    }else if(left || right){
+                        bottom.velocityY += 0.50 * drop.velocityY; //transfer a part.
+                        if(left){
+                            left.velocityX += 0.25 * drop.velocityY; //part of force goes left.
+                            dropVelocityX -= 0.25 * drop.velocityY; //part goes into itself right.
+                        }else{
+                            right.velocityX -= 0.25 * drop.velocityY; //part of force goes right.     
+                            dropVelocityX += 0.25 * drop.velocityY; //part goes into itself left.                   
+                        }
+                    }else{ //no left or right.
+                        bottom.velocityY += drop.velocityY; //transfer part.
+                        if(Math.random()<0.5){ //transfer randomly left or right.
+                            dropVelocityX -= 0.25 * drop.velocityY;
+                        }else{
+                            dropVelocityX += 0.25 * drop.velocityY;
+                        }                       
                     }
-                }else{ //no left or right.
-                    bottom.velocityY += drop.velocityY; //transfer part.
-                    if(Math.random()<0.5){ //transfer randomly left or right.
-                        dropVelocityX -= 0.25 * drop.velocityY;
-                    }else{
-                        dropVelocityX += 0.25 * drop.velocityY;
-                    }                       
                 }
             }else{ //nothing directly in the way.
                 dropVelocityY += drop.velocityY; //just continue                
@@ -305,96 +301,109 @@ function transferKineticEnergy(drop){
     drop.velocityY = dropVelocityY;
 }
 
-//Returns end xy or an xy in between if there is a collision.
-function collisionPoint(xStart, yStart, xEnd, yEnd){
+//move the drop and transfer energy on impact.
+function resolveKineticEnergy(drop, seconds){
+    //get distance to move.
+    var dx = Math.round(drop.velocityX * seconds);
+    var dy = Math.round(drop.velocityY * seconds);
     
-    //If w're not moving.
-    if(xStart == xEnd && yStart == yEnd) return null;
+    //do not move if there is no distance to move.
+    if(dx == 0 && dy == 0) return;
     
-    //step over x or y, whichever absolute distance is greater.
-    var deltaX = xEnd - xStart;
-    var deltaY = yEnd - yStart;
-    var steps = 0;
-     
-    var stepOverX = Math.abs(deltaX) > Math.abs(deltaY);
+    var xDirection = (dx > 0)? 1 : -1;
+    var yDirection = (dy > 0)? 1 : -1;
+    var dxAbs = Math.abs(dx);
+    var dyAbs = Math.abs(dy);
+    
+    //set either x or y to be a step.
+    //a step is a movement on the collisionGrid(full integers).
+    //a move is movement(or future movement) on the cartesian plane of the drop.
+    //steps and moves are positive and corrected by direction when no longer in the context of a step.
+    var stepOverX = dxAbs > dyAbs;
     if(stepOverX){
-        var xStep = (deltaX > 0)? 1 : -1
-        var yStep = Math.abs(deltaY)/Math.abs(deltaX); //y step for each 1x
-        if(deltaY < 0) {yStep *= -1;}
-        steps = Math.abs(xEnd - xStart);        
+        var xMove = 1;
+        var yMove = dyAbs/dxAbs //y step for each 1x
     }else{   
-        //step over y     
-        var yStep = (deltaY > 0)? 1 : -1
-        var xStep = Math.abs(deltaX)/Math.abs(deltaY); //x Step for each 1y
-        if(deltaX < 0) {xStep *= -1;}
-        steps = Math.abs(yEnd - yStart);        
+        //step over y
+        var yMove = 1;
+        var xMove = dxAbs/dyAbs //x Step for each 1y
     }
     
-    //Set prevCollision to current position.
-    var prevCollisionX = xStart;
-    var prevCollisionY = yStart;
-    
-    var collisionX, collisionY;
-    var x = xStart;
-    var y = yStart; 
- 
-     //Then start doing full steps.
-    while (steps > 0){   
-        x = x + xStep;
-        y = y + yStep;
-        collisionX = ~~x;
-        collisionY = ~~y;
-        if(collisionGrid[collisionX][collisionY] != null){
-            //we have collision. return previous non collision x, y locations.
-            return [~~prevCollisionX,~~prevCollisionY];
+    //step
+    //We do not step diagonally(thats why totalsteps is x + y)
+    var totalSteps = Math.round(dxAbs) + Math.round(dyAbs);
+    var steps = 0;
+    var x = drop.x;
+    var y = drop.y;
+    var prevX, prevY;
+    var xStepSignal = 0;
+    var yStepSignal = 0;
+    while(steps < totalSteps){
+        xStepSignal += xMove;
+        yStepSignal += yMove;
+        prevX = x;
+        prevY = y;
+        
+        //prejudice for x direction... as it is evaluated first.
+        if(xStepSignal >= 1){ //do an x step
+            x += 1 * xDirection;
+            xStepSignal -= 1;
+            if(collisionGrid[Math.round(x)][Math.round(y)] != null){
+                //Set drop position to previous non collision location.
+                drop.x = Math.round(prevX);
+                drop.y = Math.round(prevY);
+                //transfer energy.
+                transferKineticEnergy(drop);
+                //continue resolving (new) kinetic energy
+                seconds *= (totalSteps - steps)/totalSteps;
+                resolveKineticEnergy(drop, seconds);
+                return;
+            }    
+            steps += 1;
         }
-        if(y < 0 || x < 0){
-            //we cannot move in negative space (because of using ~~)
-            console.log("bummer");
+        
+        if(yStepSignal >= 1){ //do an y step
+            y += 1 * yDirection;            
+            xStepSignal -= 1;
+            if(collisionGrid[Math.round(x)][Math.round(y)] != null){
+                //Set drop position to previous non collision location.
+                drop.x = Math.round(prevX);
+                drop.y = Math.round(prevY);
+                //transfer energy.
+                transferKineticEnergy(drop);
+                //continue resolving (new) kinetic energy
+                seconds *= (totalSteps - steps)/totalSteps;
+                resolveKineticEnergy(drop, seconds);
+                return;
+            }    
+            steps += 1;
         }
-        prevCollisionX = collisionX;
-        prevCollisionY = collisionY;
-        steps--;
-    }    
-    
-    if(collisionGrid[xEnd][yEnd] != null){
-        console.log("impossible");
     }
     
-    return null;
+    //No more steps to take, set drop position.
+    drop.x = x;
+    drop.y = y;        
 }
 
-
-
 var Game = { };
-Game.fps = 10;
+Game.logicPerSecond = 10;
+Game.logicTimeSec = 1/Game.logicPerSecond; 
 Game.draw = function() { 
     drawDrops();
 };
-Game.update = function() {    
-    dropFysics();
+Game.update = function(frameTime) {    
+    dropFysics(frameTime);
 };
-Game.run = (function() {
-    var loops = 0, skipTicks = 1000 / Game.fps,
-    maxFrameSkip = 1,
-    nextGameTick = (new Date).getTime();
-    
-    //function returned by iife
-    return function() {
-        loops = 0;
-        
-        while ((new Date).getTime() > nextGameTick && loops < maxFrameSkip) {
-            Game.update();
-            nextGameTick += skipTicks;
-            loops++;
-        }
-        
-        if (loops) Game.draw();
-    };
-})();
+var time;
+Game.run = function() {
+    time = window.performance.now();
+    Game.update(Game.logicTimeSec);
+    Game.draw();
+    console.log("frametime: ", window.performance.now() - time);
+};
 
 // Start the game loop
-Game._intervalId = setInterval(Game.run, 0);
+Game._intervalId = setInterval(Game.run, Game.logicTimeSec * 1000);
 
 function drawArrow(fromx, fromy, tox, toy, color, ctx){
     var headlen = 0.5;
