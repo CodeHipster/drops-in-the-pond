@@ -4,6 +4,7 @@
 
 <script>
 
+//NOTE: drop positions can only be whole integers.
 
 var widthWindowPx = 400;
 var heightWindowPx = 400;
@@ -14,7 +15,7 @@ var heightPx = 20;
 var scaleWidth = widthWindowPx/widthPx;
 var scaleHeight = heightWindowPx/heightPx;
 
-var gravity = -0.1;
+var gravity = -10;
 
 //create canvas
 var canvas = document.createElement("canvas");
@@ -79,7 +80,11 @@ function Drop(x,y) {
 function drawDrops(){
     ctx.clearRect(0, 0, widthPx, heightPx);
     drops.forEach(function(drop){
-        ctx.fillRect( ~~drop.x, ~~(heightPx-drop.y-1), 1, 1 );
+        ctx.fillRect( drop.x, (heightPx-drop.y-1), 1, 1 );
+        if(!drop.static){
+            drawArrow(drop.x, (heightPx-drop.y-1), drop.x+drop.velocityX, (heightPx-drop.y-1), "#ff0000", ctx);
+            drawArrow(drop.x, (heightPx-drop.y-1), drop.x, (heightPx-drop.y-1)+drop.velocityY, "#00ff00", ctx);
+        }
     });
 };
 
@@ -93,9 +98,9 @@ function dropFysics(){
     drops.forEach(function(drop){
         if(drop.static) return;
         //remove itself from position array
-        collisionGrid[~~drop.x][~~drop.y] = null;
-        var x = drop.x + drop.velocityX;        
-        var y = drop.y + drop.velocityY;
+        collisionGrid[drop.x][drop.y] = null;
+        var x = ~~(drop.x + drop.velocityX);        
+        var y = ~~(drop.y + drop.velocityY);
 
         //check for collision
         //check each pixel between position and desired position.
@@ -111,11 +116,11 @@ function dropFysics(){
         }
 
         //Add itself to position array
-        collisionGrid[~~drop.x][~~drop.y] = drop;
+        collisionGrid[drop.x][drop.y] = drop;
     });    
 };
 
-
+//TODO:double check
 function transferKineticEnergy(drop){
     var left = collisionGrid[drop.x-1][drop.y];
     var right = collisionGrid[drop.x+1][drop.y];
@@ -303,119 +308,57 @@ function transferKineticEnergy(drop){
 //Returns end xy or an xy in between if there is a collision.
 function collisionPoint(xStart, yStart, xEnd, yEnd){
     
-    //If w're not going to move in the collision grid. no need to check for collision.
-    if(~~xStart == ~~xEnd && ~~yStart == ~~yEnd) return null;
+    //If w're not moving.
+    if(xStart == xEnd && yStart == yEnd) return null;
     
     //step over x or y, whichever absolute distance is greater.
     var deltaX = xEnd - xStart;
     var deltaY = yEnd - yStart;
-    var x, y, collisionX, collisionY;
-    
-    //Set prevCollision to current position aligned to collision grid.
-    //~~ converts a number to an integer.(floor() for positive nrs)
-    var prevCollisionX = ~~xStart;
-    var prevCollisionY = ~~yStart; 
+    var steps = 0;
+     
     var stepOverX = Math.abs(deltaX) > Math.abs(deltaY);
     if(stepOverX){
-        var yStep = deltaY/deltaX; //y step for each 1x
         var xStep = (deltaX > 0)? 1 : -1
-        
-        if(~~xStart == ~~xEnd){
-            //we are crossing boundry in y direction. because we already check if we move at all.
-            //set values to their end point (as y can pass over more then 1 position.)
-            x = xEnd;
-            y = yEnd;
-            collisionX = ~~x;
-            collisionY = ~~y;
-            //Check if first align step hits.
-            if(collisionGrid[collisionX][collisionY] != null){
-                //we have collision. return previous non collision x, y locations.
-                return [prevCollisionX,prevCollisionY];
-            }else{
-                return null;
-            }
-        }else{
-            //Align to next integer position (move forward a little)
-            x = ~~(xStart + xStep);
-            var alignStepX = x - xStart;
-            y = (alignStepX * yStep) + yStart;         
-        }    
-        
+        var yStep = Math.abs(deltaY)/Math.abs(deltaX); //y step for each 1x
+        if(deltaY < 0) {yStep *= -1;}
+        steps = Math.abs(xEnd - xStart);        
     }else{   
         //step over y     
-        var xStep = deltaX/deltaY; //xStep for each 1y
         var yStep = (deltaY > 0)? 1 : -1
-        
-        if(~~yStart == ~~yEnd){
-            //we are crossing boundry in y direction. because we already check if we move at all.
-            //set values to their end point (as y can pass over more then 1 position.)
-            x = xEnd;
-            y = yEnd;
-            collisionX = ~~x;
-            collisionY = ~~y;
-            //Check if first align step hits.
-            if(collisionGrid[collisionX][collisionY] != null){
-                //we have collision. return previous non collision x, y locations.
-                return [prevCollisionX,prevCollisionY];
-            }else{
-                return null;
-            }
-        }else{
-            //Align to next integer position (move forward a little)
-            y = ~~(yStart + yStep);
-            var alignStepY = y - yStart;
-            x = (alignStepY * xStep) + xStart;
-        }        
-    }       
-            
-    collisionX = ~~x;
-    collisionY = ~~y;
-        
-    //Check if first align step hits.
-    if(collisionGrid[collisionX][collisionY] != null){
-        //we have collision. return previous non collision x, y locations.
-        return [prevCollisionX,prevCollisionY];
+        var xStep = Math.abs(deltaX)/Math.abs(deltaY); //x Step for each 1y
+        if(deltaX < 0) {xStep *= -1;}
+        steps = Math.abs(yEnd - yStart);        
     }
     
-    function step(){
-        prevCollisionX = collisionX;
-        prevCollisionY = collisionY;
+    //Set prevCollision to current position.
+    var prevCollisionX = xStart;
+    var prevCollisionY = yStart;
+    
+    var collisionX, collisionY;
+    var x = xStart;
+    var y = yStart; 
+ 
+     //Then start doing full steps.
+    while (steps > 0){   
         x = x + xStep;
         y = y + yStep;
         collisionX = ~~x;
         collisionY = ~~y;
         if(collisionGrid[collisionX][collisionY] != null){
             //we have collision. return previous non collision x, y locations.
-            return [prevCollisionX,prevCollisionY];
+            return [~~prevCollisionX,~~prevCollisionY];
         }
-        return null;
-    }
+        if(y < 0 || x < 0){
+            //we cannot move in negative space (because of using ~~)
+            console.log("bummer");
+        }
+        prevCollisionX = collisionX;
+        prevCollisionY = collisionY;
+        steps--;
+    }    
     
-    //Then start doing full steps.
-    if(stepOverX){
-        while (~~xEnd != ~~x){
-            var result = step();
-            if(result != null) {
-                return result;
-            }
-        }    
-    }else{
-        while (~~yEnd != ~~y){
-            var result = step();
-            if(result != null) {
-                return result;
-            }            
-        }
-    }
-        
-    //No hits along the way, check if the end position hits anything.
-    prevCollisionX = collisionX;
-    prevCollisionY = collisionY;
-    collisionX = ~~xEnd;
-    collisionY = ~~yEnd;
-    if(collisionGrid[collisionX][collisionY] != null){
-        //we have collision. return previous non collision x, y locations.
-        return [prevCollisionX,prevCollisionY];
+    if(collisionGrid[xEnd][yEnd] != null){
+        console.log("impossible");
     }
     
     return null;
@@ -424,7 +367,7 @@ function collisionPoint(xStart, yStart, xEnd, yEnd){
 
 
 var Game = { };
-Game.fps = 50;
+Game.fps = 10;
 Game.draw = function() { 
     drawDrops();
 };
@@ -452,6 +395,39 @@ Game.run = (function() {
 
 // Start the game loop
 Game._intervalId = setInterval(Game.run, 0);
+
+function drawArrow(fromx, fromy, tox, toy, color, ctx){
+    var headlen = 0.5;
+
+    var angle = Math.atan2(toy-fromy,tox-fromx);
+
+    //starting path of the arrow from the start square to the end square and drawing the stroke
+    ctx.beginPath();
+    ctx.moveTo(fromx, fromy);
+    ctx.lineTo(tox, toy);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 0.1;
+    ctx.stroke();
+
+    //starting a new path from the head of the arrow to one of the sides of the point
+    ctx.beginPath();
+    ctx.moveTo(tox, toy);
+    ctx.lineTo(tox-headlen*Math.cos(angle-Math.PI/7),toy-headlen*Math.sin(angle-Math.PI/7));
+
+    //path from the side point of the arrow, to the other side point
+    ctx.lineTo(tox-headlen*Math.cos(angle+Math.PI/7),toy-headlen*Math.sin(angle+Math.PI/7));
+
+    //path from the side point back to the tip of the arrow, and then again to the opposite side point
+    ctx.lineTo(tox, toy);
+    ctx.lineTo(tox-headlen*Math.cos(angle-Math.PI/7),toy-headlen*Math.sin(angle-Math.PI/7));
+
+    //draws the paths created above
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 0.1;
+    ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.fill();
+}
 
 </script>
 
