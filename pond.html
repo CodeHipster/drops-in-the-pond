@@ -191,7 +191,7 @@ function transferKineticEnergy(drop){
                         dropVelocityY += 0.5 * drop.velocityX;
                     }
                 }else{//transfer force                    
-                    dropVelocityX -= 0.90 * drop.velocityX; //90 % remains                
+                    dropVelocityX += 0.90 * drop.velocityX; //90 % remains                
                     if(top && bottom){    
                         left.velocityX += 0.050 * drop.velocityX; //transfer a part.
                         top.velocityY += 0.025 * drop.velocityX; //part of force goes up.
@@ -279,7 +279,7 @@ function transferKineticEnergy(drop){
                         dropVelocityX -= 0.5 * drop.velocityY;
                     }
                 }else{//transfer force to surrounding drops.
-                    dropVelocityY -= 0.90 * drop.velocityY; //90 % remains 
+                    dropVelocityY += 0.90 * drop.velocityY; //90 % remains 
                     if(left && right){  
                         bottom.velocityY += 0.050 * drop.velocityY; //transfer a part.
                         left.velocityX += 0.025 * drop.velocityY; //part of force goes left.
