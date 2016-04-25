@@ -39,8 +39,8 @@ canvas.addEventListener('click', function placeDrop(event) {
     if(collisionGrid[x][y] == null){
         //create new drop.
         var drop = new Drop(x,y)
-        drop.velocityX = 5;
-        drop.velocityY = 10;
+        drop.velocityX = -20;
+        drop.velocityY = 40;
         //add to array
         drops.push(drop);
         //add to collisionGrid    
@@ -364,7 +364,7 @@ function resolveKineticEnergy(drop, seconds){
         
         if(yStepSignal >= 1){ //do an y step
             y += 1 * yDirection;            
-            xStepSignal -= 1;
+            yStepSignal -= 1;
             if(collisionGrid[Math.round(x)][Math.round(y)] != null){
                 //Set drop position to previous non collision location.
                 drop.x = Math.round(prevX);
